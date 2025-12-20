@@ -304,10 +304,15 @@ bool PN532::SAMConfig(void)
 
     DMSG("SAMConfig\n");
 
-    if (HAL(writeCommand)(pn532_packetbuffer, 4))
-        return false;
+    int8_t wc = HAL(writeCommand)(pn532_packetbuffer, 4);
+    DMSG("SAMConfig: writeCommand -> "); DMSG_INT(wc); DMSG("\n");
+    if (wc) return false;
 
-    return (0 < HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer)));
+    int16_t rr = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
+    DMSG("SAMConfig: readResponse -> "); DMSG_INT(rr); DMSG("\n");
+
+    // Some firmwares return zero-length frames for SAMConfig; accept rr >= 0 as success
+    return (rr >= 0);
 }
 
 /**************************************************************************/
@@ -653,7 +658,7 @@ uint8_t PN532::mifareclassic_WriteNDEFURI (uint8_t sectorNumber, uint8_t uriIden
     // in NDEF records
 
     // Setup the sector buffer (w/pre-formatted TLV wrapper and NDEF message)
-    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, len + 5, 0xD1, 0x01, len + 1, 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, len + (uint8_t)5, 0xD1, 0x01, len + (uint8_t)5, 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer3[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer4[16] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
