@@ -302,14 +302,14 @@ bool PN532::SAMConfig(void)
     pn532_packetbuffer[2] = 0x14; // timeout 50ms * 20 = 1 second
     pn532_packetbuffer[3] = 0x01; // use IRQ pin!
 
-    DMSG("SAMConfig\n");
+    DMSG("\nSAMConfig\n");
 
     int8_t wc = HAL(writeCommand)(pn532_packetbuffer, 4);
-    DMSG("SAMConfig: writeCommand -> "); DMSG_INT(wc); DMSG("\n");
+    DMSG("\nSAMConfig: writeCommand -> "); DMSG_INT(wc); DMSG("\n");
     if (wc) return false;
 
     int16_t rr = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer));
-    DMSG("SAMConfig: readResponse -> "); DMSG_INT(rr); DMSG("\n");
+    DMSG("\nSAMConfig: readResponse -> "); DMSG_INT(rr); DMSG("\n");
 
     // Some firmwares return zero-length frames for SAMConfig; accept rr >= 0 as success
     return (rr >= 0);
@@ -658,7 +658,8 @@ uint8_t PN532::mifareclassic_WriteNDEFURI (uint8_t sectorNumber, uint8_t uriIden
     // in NDEF records
 
     // Setup the sector buffer (w/pre-formatted TLV wrapper and NDEF message)
-    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, len + (uint8_t)5, 0xD1, 0x01, len + (uint8_t)5, 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t nlen = (uint8_t)(len + 5); // NDEF payload length (fits in 1 byte)
+    uint8_t sectorbuffer1[16] = {0x00, 0x00, 0x03, nlen, 0xD1, 0x01, nlen, 0x55, uriIdentifier, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer2[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer3[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     uint8_t sectorbuffer4[16] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -859,17 +860,36 @@ bool PN532::inListPassiveTarget()
 
 int8_t PN532::tgInitAsTarget(const uint8_t* command, const uint8_t len, const uint16_t timeout){
   
-  int8_t status = HAL(writeCommand)(command, len);
-    if (status < 0) {
-        return -1;
+  int attempts = 0;
+  int8_t status = 0;
+  while (attempts < 3) {
+    status = HAL(writeCommand)(command, len);
+    if (status >= 0) {
+        break; // ok
     }
+    DMSG("tgInitAsTarget: writeCommand failed, attempt "); DMSG_INT(attempts); DMSG("\n");
+    // try wakeup and short delay before retrying
+    HAL(wakeup)();
+    delay(150);
+    attempts++;
+  }
+  if (status < 0) {
+    DMSG("tgInitAsTarget: writeCommand failed after retries\n");
+    return -1;
+  }
 
     status = HAL(readResponse)(pn532_packetbuffer, sizeof(pn532_packetbuffer), timeout);
     if (status > 0) {
+        DMSG("tgInitAsTarget: success, response length: ");
+        DMSG_HEX(status);
+        DMSG("\nResponse: ");
+        PrintHex(pn532_packetbuffer, status);
         return 1;
     } else if (PN532_TIMEOUT == status) {
+        DMSG("tgInitAsTarget: timeout waiting for target activation\n");
         return 0;
     } else {
+        DMSG("tgInitAsTarget: invalid response or frame\n");
         return -2;
     }
 }
@@ -879,12 +899,17 @@ int8_t PN532::tgInitAsTarget(const uint8_t* command, const uint8_t len, const ui
  */
 int8_t PN532::tgInitAsTarget(uint16_t timeout)
 {
+    /*
+     * Default target initialization for peer-to-peer / tag emulation.
+     * Use MODE = 0x05 (PICC only, passive) and SENS_RES/SEL_RES values
+     * commonly used by the emulation example to improve phone compatibility.
+     */
     const uint8_t command[] = {
         PN532_COMMAND_TGINITASTARGET,
-        0,
-        0x00, 0x00,         //SENS_RES
-        0x00, 0x00, 0x00,   //NFCID1
-        0x40,               //SEL_RES
+        0x05,              // MODE: PICC only, Passive only (use 0x05 for better phone compatibility)
+        0x04, 0x00,         // SENS_RES (ATQA) - 0x0400 commonly used for emulation
+        0x00, 0x00, 0x00,   // NFCID1 (3 bytes)
+        0x20,               // SEL_RES (Sak) - 0x20 commonly used for Type 4/PN532 emulation
 
         0x01, 0xFE, 0x0F, 0xBB, 0xBA, 0xA6, 0xC9, 0x89, // POL_RES
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -914,7 +939,7 @@ int16_t PN532::tgGetData(uint8_t *buf, uint8_t len)
 
 
     if (buf[0] != 0) {
-        DMSG("status is not ok\n");
+        DMSG("status is not ok: 0x"); DMSG_HEX(buf[0]); DMSG("\n");
         return -5;
     }
 

@@ -5,6 +5,7 @@
 // SNEP ve NDEF kütüphanelerini ekliyoruz
 #include <snep.h>
 #include <NdefMessage.h>
+#include <emulatetag.h>
 
 // --- BAĞLANTILAR ---
 // Elechouse V3 PN532 -> ESP32
@@ -14,8 +15,8 @@
 
 PN532_HSU pn532_hsu(Serial2);
 PN532 nfc(pn532_hsu);
-// SNEP nesnesini nfc üzerinden başlatıyoruz
 SNEP snep(pn532_hsu);
+EmulateTag emu(pn532_hsu);
 
 // --- BELLEK YAPISI ---
 struct CardProfile {
@@ -34,7 +35,6 @@ uint8_t ndefBuf[128];
 // --- GENİŞLETİLMİŞ SÖZLÜK (GLOBAL) ---
 const int TOTAL_KEYS = 55; 
 const byte keys[TOTAL_KEYS][6] = {
-  // ... (Senin anahtar listen aynı kalıyor) ...
   {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}, 
   {0x00,0x00,0x00,0x00,0x00,0x00}, 
   {0xA0,0xA1,0xA2,0xA3,0xA4,0xA5}, 
@@ -95,7 +95,7 @@ int findCardInDB(byte* uid, byte len);
 void displayDataWithASCII(int sector, int block, byte* data);
 bool tryKey(byte* uid, byte len, int sector, const byte* key); 
 void verifyAndWrite();    // [W]
-void emulateActiveCard(); // [E] -> ARTIK SNEP KULLANACAK
+void emulateActiveCard(); // [E]
 void deleteCard(int index);
 void listCards();
 void loadCardFromDisk(int index);
@@ -103,22 +103,26 @@ bool unlockBackdoor();
 void reselectCard(byte* expectedUID, byte len); 
 
 void setup() {
-  // İstediğin gibi 9600 baud
   Serial.begin(9600);
-  
-  // KRİTİK: Buffer artırımı (SNEP stabilitesi için)
-  Serial2.setRxBufferSize(1024);
+  // Serial2 Buffer boyutunu artırmak iyidir
+  Serial2.setRxBufferSize(1024); 
   
   delay(1000);
-  Serial.println("\n--- TURKISH CYBER NFC TOOL V10.0 (FINAL) ---");
+  Serial.println("\n--- TURKISH CYBER NFC TOOL V10.1 (STABLE) ---");
   Serial.println("Modes: [R] Read/Crack | [W] Clone | [E] Send UID to Phone");
 
   if (!SPIFFS.begin(true)) Serial.println("SPIFFS Hatasi!");
 
   nfc.begin();
-  if (!nfc.getFirmwareVersion()) { Serial.println("PN532 BULUNAMADI!"); while(1); }
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  if (!versiondata) { Serial.println("PN532 BULUNAMADI!"); while(1); }
   
-  // Başlangıç yapılandırması
+  Serial.print("PN532 Bulundu. Chip: PN5"); Serial.println((versiondata>>24) & 0xFF, HEX);
+  
+  // Emülatör modülünü başta bir kere init edelim
+  emu.init(); 
+  
+  // Varsayılan olarak Okuyucu moduna geç
   nfc.SAMConfig();
 }
 
@@ -141,11 +145,11 @@ void loop() {
 
 void reselectCard(byte* expectedUID, byte len) {
   byte uid[7]; byte l;
-  nfc.inListPassiveTarget(); // Reset ve bekleme
+  nfc.inListPassiveTarget();
   nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &l, 50);
 }
 
-// --- [R] AKILLI ANALİZ ALGORİTMASI (DOKUNULMADI) ---
+// --- [R] AKILLI ANALİZ ALGORİTMASI ---
 void smartAnalyzeAndSave() {
   Serial.println("\n=== [R] AKILLI KIRMA MODU (TR) ===");
   Serial.println("Karti koyun ve bekleyin...");
@@ -204,8 +208,10 @@ void smartAnalyzeAndSave() {
     if (!cracked) {
       Serial.print("[Deneme: ");
       for (int k = 0; k < TOTAL_KEYS; k++) {
-        // Canlı Gösterge
+        // Canlı Gösterge: Her denemede sayıyı bas
         Serial.print(k); Serial.print("..");
+        
+        // İşlemcinin nefes alması için
         yield(); 
 
         reselectCard(uid, len);
@@ -217,6 +223,7 @@ void smartAnalyzeAndSave() {
           break; 
         }
         
+        // Okunabilirlik için satır atla
         if (k > 0 && k % 10 == 9) Serial.print("\n          ");
       }
       if (!cracked) Serial.print(" YOK]");
@@ -275,12 +282,15 @@ void loadCardFromDisk(int index) {
   File f = SPIFFS.open(n, "r");
   f.read((byte*)&activeCard, sizeof(CardProfile));
   f.close();
-  Serial.println("Yuklendi. Klonlanacak/Gonderilecek UID: ");
-  for(int i=0; i<activeCard.uidLen; i++) { Serial.print(activeCard.uid[i], HEX); Serial.print(" "); }
-  Serial.println();
+  Serial.println("Kart verisi RAM'e yuklendi.");
 }
 
-// --- [W] DOĞRULAMALI YAZMA FONKSİYONU (DOKUNULMADI) ---
+bool unlockBackdoor() {
+  byte u[]={0x43}; byte r[32]; uint8_t l=32;
+  return (nfc.inDataExchange(u,1,r,&l) && l>0 && r[0]==0x0A);
+}
+
+// --- [W] DOĞRULAMALI YAZMA FONKSİYONU ---
 void verifyAndWrite() {
   Serial.println("\n=== [W] KLONLAMA (DOGRULAMALI) ===");
   Serial.println("Lutfen HEDEF (Bos) karti koyun...");
@@ -388,67 +398,104 @@ void verifyAndWrite() {
   }
 }
 
-// --- [E] YENİ SNEP EMÜLASYON FONKSİYONU ---
+// --- [E] HIBRIT EMULASYON ---
 void emulateActiveCard() {
-  Serial.println("\n=== [E] EMULASYON (UID GONDER) ===");
-  Serial.println("Telefonu yaklastirin (Ekran acik olsun)...");
-  Serial.println("Cikmak icin tusa basin.");
-
-  // 1. UID String'ini Hazırla
-  String uidStr = "UID: ";
-  for (int i = 0; i < activeCard.uidLen; i++) {
-      if(activeCard.uid[i] < 0x10) uidStr += "0";
-      uidStr += String(activeCard.uid[i], HEX);
-      if(i < activeCard.uidLen - 1) uidStr += " "; 
-  }
-  uidStr.toUpperCase();
-  Serial.print("Gonderilecek Mesaj: "); Serial.println(uidStr);
-
-  // 2. NDEF TEXT RECORD OLUŞTURMA (Manuel)
-  int textLen = uidStr.length();
-  int payloadLen = 3 + textLen; // 1 byte Status + 2 byte Lang + Text
-  int totalLen = 7 + textLen;   // Header(2) + PayloadLen(1) + Type(1) + Payload
-
-  ndefBuf[0] = 0xD1; // Header (MB/ME/SR/TNF=Well Known)
-  ndefBuf[1] = 0x01; // Type Length (1 byte)
-  ndefBuf[2] = payloadLen; // Payload Length
-  ndefBuf[3] = 'T';  // Type = 'T' (Text)
+  // ================= AYARLAR =================
+  // Burayi degistirerek modu secebilirsin:
+  // 0x20: ISO 14443-4 (Smart Card) -> UID Kaymaz + Telefon Oter (ATS gonderir)
+  // 0x08: Mifare Classic 1K        -> UID Kayabilir + Telefon Oter (Eski Mantik)
   
-  ndefBuf[4] = 0x02; // Status (UTF-8)
-  ndefBuf[5] = 'e';  // Language 'en'
-  ndefBuf[6] = 'n';
+  byte targetSAK = 0x20;  // <--- MODU BURADAN DEGISTIR
   
-  for(int i=0; i<textLen; i++) {
-      ndefBuf[7+i] = uidStr.charAt(i);
-  }
+  // ===========================================
 
-  // 3. GÖNDERİM DÖNGÜSÜ
+  Serial.println("\n=== [E] HIBRIT EMULASYON BASLIYOR ===");
+  Serial.print("Secilen Mod (SAK): 0x"); Serial.println(targetSAK, HEX);
+  
+  if(targetSAK == 0x20) Serial.println("Bilgi: 0x20 modu secildi. ATS cevabi aktif.");
+  else Serial.println("Bilgi: 0x08 modu secildi. Standart Mifare taklidi.");
+
+  // 1. UID Goster
+  Serial.print("Hedef UID: ");
+  for(int i=0; i<activeCard.uidLen; i++) { 
+    Serial.print(activeCard.uid[i], HEX); Serial.print(" "); 
+  }
+  Serial.println();
+
+  // 2. KOMUT PAKETI (DINAMIK)
+  uint8_t command[] = {
+    0x8C,             // KOMUT
+    0x05,             // MODE
+    0x04, 0x00,       // SENS_RES
+    
+    activeCard.uid[0], activeCard.uid[1], activeCard.uid[2], // UID
+    
+    targetSAK,        // <--- DINAMIK SAK DEGERI (0x20 veya 0x08)
+
+    // STANDART DOLGU
+    0x01, 0xFE, // NFCID2t (8 bytes) https://github.com/adafruit/Adafruit-PN532/blob/master/Adafruit_PN532.cpp FeliCa NEEDS TO BEGIN WITH 0x01 0xFE!
+    0x0F, 0xBB, 0xBA,
+    0xA6, 0xC9, 0x89,
+    0x00, 0x00, // PAD (8 bytes)
+    0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00,
+    0xFF, 0xFF, // System Code
+    0x01, 0xFE, 0x0F, 0xBB, 0xBA, 0xA6, 0xC9, 0x89, 0x00, 0x00, // NFCID3t (10 bytes)
+    0x06, 0x46,  0x66, 0x6D, 0x01, 0x01, 0x10, 0x00 // LLCP magic number and version parameter
+  };
+
+  // 3. ATS CEVABI (Sadece 0x20 modu icin gerekli)
+  uint8_t ats[] = { 0xD1, 0x01, 0x79, 0x80, 0x02 ,'T','e'}; 
+
   unsigned long startTime = millis();
-  bool sent = false;
+  while(Serial2.available()) Serial2.read();
 
-  while(millis() - startTime < 30000) { // 30 Saniye Timeout
-      
-      // SNEP üzerinden yaz
-      if (snep.write(ndefBuf, totalLen) > 0) {
-          Serial.println("\n>>> BASARILI! UID TELEFONA GONDERILDI! <<<");
-          sent = true;
-          delay(2000); 
-          break; 
-      } else {
-          delay(100); 
+  Serial.println("Telefonu/Okuyucuyu yaklastirin... (40sn)");
+
+  while (millis() - startTime < 40000) { 
+    if(Serial.available()) { while(Serial.available()) Serial.read(); break; }
+    while(Serial2.available()) Serial2.read();
+
+    // Baglanti Bekle
+    int8_t status = nfc.tgInitAsTarget(command, sizeof(command), 1000);
+
+    if (status > 0) {
+      Serial.println("\n>>> BAGLANTI SAGLANDI! <<<");
+
+      // --- AYRIM NOKTASI ---
+      if (targetSAK == 0x20) {
+          // Eger 0x20 ise telefon RATS gonderip cevap (ATS) bekler.
+          // Cevap vermezsek baglanti kopar ve ses cikmaz.
+          Serial.println("RATS alindi, ATS cevabi gonderiliyor...");
+          if (activeCard.uidLen >= 3) emu.setUid(activeCard.uid);
+          if(nfc.tgSetData(ats, sizeof(ats)) >= 0) {
+            emu.setNdefFile(ats, sizeof(ats)); // ATS verisini NDEF olarak ayarla (opsiyonel)
+            emu.emulate(1000);
+            Serial.println(">>> BASARILI! (ATS Gonderildi & Bip Sesi) <<<");
+            delay(2000);
+            break;
+          } else {
+            Serial.println("Hata: ATS gonderilemedi.");
+          }
+      } 
+      else {
+          // Eger 0x08 ise (veya baska bir sey), ekstra bir sey yapmaya gerek yok.
+          // Telefon zaten UID'yi aldi ve Mifare sandigi icin mutlu oldu.
+          Serial.println(">>> BASARILI! (Mifare Modu - Islem Tamam) <<<");
+          delay(2000);
+          break;
       }
-
-      if(Serial.available()) break; 
+    } 
+    else if (status == 0) {
+       Serial.print("."); 
+    }
+    else {
+       delay(50); // Timeout
+    }
+    yield();
   }
-  
-  if(!sent) Serial.println("\nZaman asimi veya iptal.");
-  
-  // İşlem bitince okuyucuyu resetle ki [R] modu çalışsın
+
+  Serial.println("\nIslem bitti. Resetleniyor...");
   nfc.begin();
   nfc.SAMConfig();
-}
-
-bool unlockBackdoor() {
-  byte u[]={0x43}; byte r[32]; uint8_t l=32;
-  return (nfc.inDataExchange(u,1,r,&l) && l>0 && r[0]==0x0A);
 }

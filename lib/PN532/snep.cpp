@@ -9,7 +9,17 @@ int8_t SNEP::write(const uint8_t *buf, uint8_t len, uint16_t timeout)
 		return -1;
 	}
 
-	if (0 >= llcp.connect(timeout)) {
+	// Try to establish LLCP connection with a few retries — phones can be finicky about timing
+	int attempts = 0;
+	while (attempts < 6) {
+		if (0 < llcp.connect(timeout)) {
+			break; // success
+		}
+		DMSG("llcp.connect attempt failed, retrying... attempt "); DMSG_INT(attempts); DMSG("\n");
+		delay(300);
+		attempts++;
+	}
+	if (attempts >= 6) {
 		DMSG("failed to set up a connection\n");
 		return -2;
 	}

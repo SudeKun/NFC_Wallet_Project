@@ -60,23 +60,31 @@ int8_t PN532_HSU::writeCommand(const uint8_t *header, uint8_t hlen, const uint8_
 
     DMSG("\nWrite: ");
     
-    _serial->write(header, hlen);
-    for (uint8_t i = 0; i < hlen; i++) {
-        sum += header[i];
+    // Small pause after writing TFI to give module time to prepare for data
+    delay(5);
 
+    // Write header bytes with longer delay to avoid serial overrun on some HSU modules
+    for (uint8_t i = 0; i < hlen; i++) {
+        _serial->write(header[i]);
+        sum += header[i];
         DMSG_HEX(header[i]);
+        delay(1); // 1 ms pause between bytes (more reliable on clones)
     }
 
-    _serial->write(body, blen);
+    // Write body bytes (if any) with longer delay as well
     for (uint8_t i = 0; i < blen; i++) {
+        _serial->write(body[i]);
         sum += body[i];
-
         DMSG_HEX(body[i]);
+        delay(1);
     }
     
     uint8_t checksum = ~sum + 1;            // checksum of TFI + DATA
     _serial->write(checksum);
     _serial->write(PN532_POSTAMBLE);
+
+    // Ensure all bytes are transmitted before waiting for ACK (important for HSU)
+    _serial->flush();
 
     return readAckFrame();
 }
@@ -147,11 +155,46 @@ int8_t PN532_HSU::readAckFrame()
     
     DMSG("\nAck: ");
     
-    if( receive(ackBuf, sizeof(PN532_ACK), PN532_ACK_WAIT_TIME) <= 0 ){
-        DMSG("Timeout\n");
+    uint16_t waitTime = PN532_ACK_WAIT_TIME;
+    // TGINITASTARGET (0x8C) can take longer to acknowledge on some firmwares
+    if (command == 0x8C) { // PN532_COMMAND_TGINITASTARGET
+        waitTime = 5000; // wait up to 5s for ACK (long peer-to-peer activation can take time)
+    }
+
+    int attempts = 0;
+    while (attempts < 3) {
+        int8_t r = receive(ackBuf, sizeof(PN532_ACK), waitTime);
+        if (r <= 0) {
+            DMSG("Timeout\n");
+            // Dump any partial bytes available (short read)
+            uint8_t partialBuf[64];
+            int8_t pr = receive(partialBuf, sizeof(partialBuf), 50);
+            if (pr > 0) {
+                DMSG("Partial bytes: ");
+                int i;
+                for (i = 0; i < pr; i++) DMSG_HEX(partialBuf[i]);
+                DMSG("\n");
+            }
+            // Try wakeup/reset on first attempt, then retry a couple times
+            if (attempts == 0) {
+                DMSG("Calling wakeup() and retrying\n");
+                wakeup();
+                delay(50);
+            } else {
+                DMSG("Retrying...\n");
+                delay(150);
+            }
+            attempts++;
+            continue;
+        }
+        break; // got ack
+    }
+
+    if (attempts >=3) {
+        DMSG("Ack failed after retries\n");
         return PN532_TIMEOUT;
     }
-    
+
     if( memcmp(ackBuf, PN532_ACK, sizeof(PN532_ACK)) ){
         DMSG("Invalid\n");
         return PN532_INVALID_ACK;

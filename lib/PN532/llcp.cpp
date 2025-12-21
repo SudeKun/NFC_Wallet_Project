@@ -122,14 +122,24 @@ int8_t LLCP::connect(uint16_t timeout)
     ns = 0;
     nr = 0;
 
-    // try to get a SYMM PDU
-    if (2 > link.read(headerBuf, headerBufLen)) {
-        return -1;
+    // try to get a SYMM PDU (may take time on phones that start with tag emulation flows)
+    int symmWait = 0;
+    while (symmWait < 10) { // up to ~10s in increments (dependent on tgGetData timeouts)
+        if (2 > link.read(headerBuf, headerBufLen)) {
+            symmWait++;
+            DMSG("Waiting for SYMM PDU... attempt "); DMSG_INT(symmWait); DMSG("\n");
+            continue;
+        }
+        type = getPType(headerBuf);
+        if (PDU_SYMM == type) {
+            break;
+        } else {
+            DMSG("Unexpected PDU type while waiting for SYMM: 0x"); DMSG_HEX(type); DMSG("\n");
+            symmWait++;
+            continue;
+        }
     }
-    type = getPType(headerBuf);
-    if (PDU_SYMM != type) {
-        return -1;
-    }
+    if (symmWait >= 10) return -1;
 
     // put a CONNECT PDU
     headerBuf[0] = (LLCP_DEFAULT_DSAP << 2) + (PDU_CONNECT >> 2);

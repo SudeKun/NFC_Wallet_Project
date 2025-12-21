@@ -92,6 +92,12 @@ bool EmulateTag::emulate(const uint16_t tgInitAsTargetTimeout){
     memcpy(command + 4, uidPtr, 3);
   }
 
+  // Make PN532 more tolerant: force RF on and set passive activation retries before initiating target.
+  pn532.setPassiveActivationRetries(0xFF);
+  // Turn RF on, check external field before activation (autoRFCA=0x02, RF on=0x01)
+  pn532.setRFField(0x02, 0x01);
+  delay(100);
+
   if(1 != pn532.tgInitAsTarget(command,sizeof(command), tgInitAsTargetTimeout)){
     DMSG("tgInitAsTarget failed or timed out!");
     return false;
