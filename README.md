@@ -1,4 +1,4 @@
-# NFC Project
+# NFC Wallet Project
 
 This project implements NFC (Near Field Communication) functionality using Arduino-compatible boards with PN532 NFC modules. It includes libraries for NDEF (NFC Data Exchange Format) message handling and PN532 communication protocols.
 
